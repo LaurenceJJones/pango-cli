@@ -15,11 +15,9 @@ import (
 )
 
 const (
-	defaultPort             = 22123
-	defaultPrincipalsPath   = "/var/run/auth-daemon/principals"
-	defaultCACertPath       = ""
-	defaultSSHDConfigPath   = "/etc/ssh/sshd_config"
-	defaultReloadSSHCommand = ""
+	defaultPort           = 22123
+	defaultPrincipalsPath = "/var/run/auth-daemon/principals"
+	defaultCACertPath     = "/etc/ssh/ca.pem"
 )
 
 var (
@@ -29,12 +27,10 @@ var (
 
 func AuthDaemonCmd() *cobra.Command {
 	opts := struct {
-		PreSharedKey     string
-		Port             int
-		PrincipalsFile   string
-		CACertPath       string
-		SSHDConfigPath   string
-		ReloadSSHCommand string
+		PreSharedKey   string
+		Port           int
+		PrincipalsFile string
+		CACertPath     string
 	}{}
 
 	cmd := &cobra.Command{
@@ -58,13 +54,11 @@ func AuthDaemonCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.PreSharedKey, "pre-shared-key", "", "Preshared key required for all API requests (required)")
+	cmd.Flags().StringVar(&opts.PreSharedKey, "pre-shared-key", "", "Preshared key required for all requests to the auth daemon (required)")
 	cmd.MarkFlagRequired("pre-shared-key")
 	cmd.Flags().IntVar(&opts.Port, "port", defaultPort, "TCP listen port for the HTTPS server")
-	cmd.Flags().StringVar(&opts.PrincipalsFile, "principals-file", defaultPrincipalsPath, "Path to the principals file (one principal per line); used by SSH or other tools")
-	cmd.Flags().StringVar(&opts.CACertPath, "ca-cert-path", defaultCACertPath, "If set, write CA cert here on POST /connection when the file does not exist; PAM/OpenSSH use this")
-	cmd.Flags().StringVar(&opts.SSHDConfigPath, "sshd-config-path", defaultSSHDConfigPath, "Path to sshd_config when using CA cert (used with --ca-cert-path)")
-	cmd.Flags().StringVar(&opts.ReloadSSHCommand, "reload-ssh", defaultReloadSSHCommand, "Command to reload sshd after config change (e.g. \"systemctl reload sshd\"); empty = no reload")
+	cmd.Flags().StringVar(&opts.PrincipalsFile, "principals-file", defaultPrincipalsPath, "Path to the principals file")
+	cmd.Flags().StringVar(&opts.CACertPath, "ca-cert-path", defaultCACertPath, "Path to the CA certificate file")
 
 	cmd.AddCommand(PrincipalsCmd())
 
@@ -83,16 +77,17 @@ func PrincipalsCmd() *cobra.Command {
 		Short: "Output principals for a username (for AuthorizedPrincipalsCommand in sshd_config)",
 		Long:  "Read the principals file and print principals that match the given username, one per line. Configure in sshd_config with AuthorizedPrincipalsCommand and %u for the username.",
 		PreRunE: func(c *cobra.Command, args []string) error {
-			if opts.PrincipalsFile == "" {
-				return errors.New("principals-file is required")
-			}
 			if opts.Username == "" {
 				return errors.New("username is required")
 			}
 			return nil
 		},
 		Run: func(c *cobra.Command, args []string) {
-			runPrincipals(opts.PrincipalsFile, opts.Username)
+			path := opts.PrincipalsFile
+			if path == "" {
+				path = defaultPrincipalsPath
+			}
+			runPrincipals(path, opts.Username)
 		},
 	}
 
@@ -116,24 +111,19 @@ func runPrincipals(principalsPath, username string) {
 	for _, principal := range list {
 		fmt.Println(principal)
 	}
-	return
 }
 
 func runAuthDaemon(opts struct {
-	PreSharedKey     string
-	Port             int
-	PrincipalsFile   string
-	CACertPath       string
-	SSHDConfigPath   string
-	ReloadSSHCommand string
+	PreSharedKey   string
+	Port           int
+	PrincipalsFile string
+	CACertPath     string
 }) {
 	cfg := authdaemonpkg.Config{
 		Port:               opts.Port,
 		PresharedKey:       opts.PreSharedKey,
 		PrincipalsFilePath: opts.PrincipalsFile,
 		CACertPath:         opts.CACertPath,
-		SSHDConfigPath:     opts.SSHDConfigPath,
-		ReloadSSHCommand:   opts.ReloadSSHCommand,
 	}
 
 	srv, err := authdaemonpkg.NewServer(cfg)
