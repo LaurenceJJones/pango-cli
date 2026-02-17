@@ -124,6 +124,7 @@ func runAuthDaemon(opts struct {
 		PresharedKey:       opts.PreSharedKey,
 		PrincipalsFilePath: opts.PrincipalsFile,
 		CACertPath:         opts.CACertPath,
+		Force:              true,
 	}
 
 	srv, err := authdaemonpkg.NewServer(cfg)
