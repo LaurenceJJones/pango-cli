@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/mattn/go-isatty"
 	"golang.org/x/crypto/ssh"
@@ -69,19 +67,9 @@ func RunNative(opts RunOpts) (int, error) {
 		return 1, fmt.Errorf("request pty: %w", err)
 	}
 
-	// Resize on SIGWINCH (Unix, TTY only)
+	// Setup terminal window resize handling (platform-specific)
 	if useRaw {
-		winchCh := make(chan os.Signal, 1)
-		signal.Notify(winchCh, syscall.SIGWINCH)
-		go func() {
-			for range winchCh {
-				if w, h, err := term.GetSize(stdinFd); err == nil {
-					_ = session.WindowChange(h, w)
-				}
-			}
-		}()
-		defer signal.Stop(winchCh)
-		winchCh <- syscall.SIGWINCH
+		setupWindowChangeHandler(session, stdinFd)
 	}
 
 	session.Stdin = os.Stdin
