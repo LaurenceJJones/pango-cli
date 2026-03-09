@@ -24,6 +24,7 @@ import (
 	"github.com/fosrl/cli/internal/utils"
 	versionpkg "github.com/fosrl/cli/internal/version"
 	newtLogger "github.com/fosrl/newt/logger"
+	dnsOverride "github.com/fosrl/olm/dns/override"
 	olmpkg "github.com/fosrl/olm/olm"
 	"github.com/spf13/cobra"
 )
@@ -154,6 +155,14 @@ func clientUpMain(cmd *cobra.Command, opts *ClientUpCmdOpts, extraArgs []string)
 		err := errors.New("a client is already running")
 		logger.Error("Error: %v", err)
 		return err
+	}
+
+	// Clean up any stale DNS configuration from a previous unclean shutdown
+	// (e.g., system crash or power loss while tunnel was active).
+	// This must happen before any network operations to ensure DNS works.
+	if err := dnsOverride.CleanupStaleState(); err != nil {
+		// Log warning but don't fail - DNS might still work
+		logger.Warning("Failed to cleanup stale DNS state: %v", err)
 	}
 
 	// Use provided flags whenever possible.
